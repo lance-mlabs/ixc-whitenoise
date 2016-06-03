@@ -3,7 +3,10 @@ import setuptools
 setuptools.setup(
     name='ixc-whitenoise',
     use_scm_version={'version_scheme': 'post-release'},
-    py_modules=['ixc_whitenoise'],
+    py_modules=[
+        'ixc_whitenoise',
+        'ixc_whitenoise_django16',
+    ],
     install_requires=[
         'whitenoise>=3.1',
     ],

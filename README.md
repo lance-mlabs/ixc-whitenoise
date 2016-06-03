@@ -7,4 +7,6 @@ Improvements to [WhiteNoise][0]:
   * Do not crash the ``collectstatic`` management command when a referenced
     file is not found or has an unknown scheme.
 
+For Django 1.6, add `ixc_whitenoise_django16` to the top of `INSTALLED_APPS`.
+
 [0]: https://github.com/evansd/whitenoise/
