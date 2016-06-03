@@ -1,3 +1,5 @@
+import ixc_whitenoise_django16
+
 import hashlib
 import logging
 import posixpath
