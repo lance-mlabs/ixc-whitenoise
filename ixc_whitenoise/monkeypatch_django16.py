@@ -53,6 +53,8 @@ if django.VERSION[:2] < (1, 7):
             else:
                 super(FileResponse, self)._set_streaming_content(value)
 
+    http.FileResponse = FileResponse
+
 
     class HashedFilesMixin(object):
         default_template = """url("%s")"""
@@ -339,6 +341,4 @@ if django.VERSION[:2] < (1, 7):
         """
         pass
 
-
-    http.FileResponse = FileResponse
     storage.ManifestStaticFilesStorage = ManifestStaticFilesStorage

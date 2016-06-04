@@ -6,6 +6,8 @@ Improvements to [WhiteNoise][0]:
   * Save media with hashed filenames, so they can be cached forever by a CDN.
   * Do not crash the ``collectstatic`` management command when a referenced
     file is not found or has an unknown scheme.
+  * Add [django-pipeline][1] integration.
   * Add support for Django 1.6 via monkey patching.
 
 [0]: https://github.com/evansd/whitenoise/
+[1]: https://github.com/jazzband/django-pipeline/
