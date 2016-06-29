@@ -13,4 +13,9 @@ setuptools.setup(
         ],
     },
     setup_requires=['setuptools_scm'],
+    include_package_data=True,
+    author='Interaction Consortium',
+    author_email='studio@interaction.net.au',
+    url='https://github.com/ixc/ixc-whitenoise',
+    license='BSD',
 )
