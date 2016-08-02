@@ -63,7 +63,12 @@ class HashedMediaStorage(FileSystemStorage):
 
         # Add hash to name.
         name, ext = posixpath.splitext(name)
-        name = '%s.%s%s' % (name, file_hash, ext)
+        if getattr(settings, 'IXC_WHITENOISE_HASHED_MEDIA_ORIGINAL_PREFIX', True):
+            # Prefix with original filename.
+            name = '%s.%s%s' % (name, file_hash, ext)
+        else:
+            # Use only the hash as filename, to avoid saving duplicate copies.
+            name = '%s%s' % (file_hash, ext)
 
         # Return early without saving, because existing files must have the
         # same content.
