@@ -3,6 +3,7 @@ import logging
 import posixpath
 import re
 
+from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 from whitenoise.storage import \
     CompressedManifestStaticFilesStorage, HelpfulExceptionMixin, \
