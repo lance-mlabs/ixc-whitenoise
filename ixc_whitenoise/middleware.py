@@ -1,10 +1,23 @@
 from django.core.exceptions import ImproperlyConfigured
 from django.core.files.storage import default_storage
+from django.http import FileResponse
 from django.utils.six.moves.urllib.parse import urlparse
 from whitenoise.middleware import WhiteNoiseMiddleware
 from whitenoise.utils import ensure_leading_trailing_slash
 
 from ixc_whitenoise.storage import HashedMediaStorage
+
+
+class StripVaryHeaderMiddleware(object):
+
+    def process_response(self, request, response):
+        """
+        Remove `Vary` header to work around an IE bug. See:
+        http://stackoverflow.com/a/23410136
+        """
+        if isinstance(response, FileResponse):
+            del response['vary']
+        return response
 
 
 # Serve media as well as static files.
