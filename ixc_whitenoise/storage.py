@@ -60,7 +60,7 @@ class HashedMediaStorage(FileSystemStorage):
         md5 = hashlib.md5()
         for chunk in content.chunks():
             md5.update(chunk)
-        file_hash = md5.hexdigest()[:12]
+        file_hash = md5.hexdigest()
 
         # Add hash to name.
         name, ext = posixpath.splitext(name)
