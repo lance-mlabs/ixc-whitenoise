@@ -5,7 +5,7 @@ from django.utils.six.moves.urllib.parse import urlparse
 from whitenoise.middleware import WhiteNoiseMiddleware
 from whitenoise.utils import ensure_leading_trailing_slash
 
-from ixc_whitenoise.storage import HashedMediaStorage
+from ixc_whitenoise.storage import UniqueStorage
 
 
 class StripVaryHeaderMiddleware(object):
@@ -46,11 +46,11 @@ class WhiteNoiseMiddleware(WhiteNoiseMiddleware):
         self.media_prefix = ensure_leading_trailing_slash(self.media_prefix)
         self.media_root = settings.MEDIA_ROOT
 
-    # Media with hashed filenames are always immutable.
+    # Files with unique names are always immutable.
     def is_immutable_file(self, path, url):
         if super(WhiteNoiseMiddleware, self).is_immutable_file(path, url):
             return True
-        if isinstance(default_storage, HashedMediaStorage) and \
+        if isinstance(default_storage, UniqueStorage) and \
                 url.startswith(self.media_prefix):
             return True
         return False

@@ -9,8 +9,19 @@ from whitenoise.storage import \
     CompressedManifestStaticFilesStorage, HelpfulExceptionMixin, \
     MissingFileError
 
+from ixc_whitenoise.models import UniqueFile
+
 logger = logging.getLogger(__name__)
 
+DEDUPE_EXTENTIONS = {
+    '.jpeg': '.jpg',
+    '.yaml': '.yml',
+}
+DEDUPE_EXTENTIONS.update(
+    getattr(settings, 'IXC_WHITENOISE_DEDUPE_EXTENTIONS', {}))
+
+DEDUPE_PATH_PREFIX = getattr(
+    settings, 'IXC_WHITENOISE_DEDUPE_PATH_PREFIX', 'dd')
 
 # Log a warning instead of raising an exception when a referenced file is
 # not found. These are often in 3rd party packages and outside our control.
@@ -41,6 +52,65 @@ class RegexURLConverterMixin(object):
         return custom_converter
 
 
+class UniqueMixin(object):
+    """
+    Save files with unique names so they can be deduplicated and cached forever.
+    """
+
+    def _save(self, name, content):
+        """
+        Save file with a content hash as its name and create a record of its
+        original name.
+        """
+
+        # Rewind content to ensure we generate a complete hash.
+        content.seek(0)
+
+        # Generate content hash.
+        md5 = hashlib.md5()
+        for chunk in content.chunks():
+            md5.update(chunk)
+        file_hash = md5.hexdigest()
+
+        # Strip dedupe path prefix from supplied name to avoid accidentally
+        # prepending it multiple times.
+        base_name = re.sub(r'^%s/' % re.escape(DEDUPE_PATH_PREFIX), '', name)
+
+        # Determine unique name.
+        path, _ = posixpath.split(base_name)
+        _, ext = posixpath.splitext(base_name)
+        ext = DEDUPE_EXTENTIONS.get(ext.lower(), ext.lower())
+        unique_name = posixpath.join(DEDUPE_PATH_PREFIX, path, file_hash + ext)
+
+        # Abort without saving because existing files with the same name must
+        # also have the same content.
+        if self.exists(unique_name):
+            return unique_name
+
+        # Save and create a record of the original name.
+        unique_name = super(UniqueMixin, self)._save(unique_name, content)
+        if unique_name != base_name:
+            UniqueFile.objects.create(name=unique_name, original_name=name)
+
+        return unique_name
+
+    def get_available_name(self, name):
+        """
+        Disable name conflict resolution.
+        """
+        return name
+
+    def original_name(self, name):
+        """
+        Return the original name for a file.
+        """
+        try:
+            return UniqueFile.objects \
+                .filter(name=name).order_by('-pk')[0].original_name
+        except IndexError:
+            return name
+
+
 class CompressedManifestStaticFilesStorage(
         HelpfulWarningMixin,
         RegexURLConverterMixin,
@@ -48,33 +118,5 @@ class CompressedManifestStaticFilesStorage(
     pass
 
 
-# Save media with hashed filenames, so they can be cached forever by a CDN.
-class HashedMediaStorage(FileSystemStorage):
-
-    # Disable Django's name conflict resolution.
-    def get_available_name(self, name):
-        return name
-
-    def _save(self, name, content):
-        # Get hash from content.
-        md5 = hashlib.md5()
-        for chunk in content.chunks():
-            md5.update(chunk)
-        file_hash = md5.hexdigest()
-
-        # Add hash to name.
-        name, ext = posixpath.splitext(name)
-        if getattr(
-                settings, 'IXC_WHITENOISE_HASHED_MEDIA_ORIGINAL_PREFIX', True):
-            # Prefix with original filename.
-            name = '%s.%s%s' % (name, file_hash, ext)
-        else:
-            # Use only the hash as filename, to avoid saving duplicate copies.
-            name = '%s%s' % (file_hash, ext)
-
-        # Return early without saving, because existing files must have the
-        # same content.
-        if self.exists(name):
-            return name
-
-        return super(HashedMediaStorage, self)._save(name, content)
+class UniqueStorage(UniqueMixin, FileSystemStorage):
+    pass
