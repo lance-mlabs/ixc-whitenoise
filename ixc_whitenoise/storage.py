@@ -89,7 +89,7 @@ class UniqueMixin(object):
 
         # Save and create a record of the original name.
         unique_name = super(UniqueMixin, self)._save(unique_name, content)
-        if unique_name != base_name:
+        if unique_name != name:
             UniqueFile.objects.create(name=unique_name, original_name=name)
 
         return unique_name
