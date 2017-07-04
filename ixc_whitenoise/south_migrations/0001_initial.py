@@ -11,6 +11,7 @@ class Migration(SchemaMigration):
         # Adding model 'UniqueFile'
         db.create_table(u'ixc_whitenoise_uniquefile', (
             (u'id', self.gf('django.db.models.fields.AutoField')(primary_key=True)),
+            ('created', self.gf('django.db.models.fields.DateTimeField')(blank=True, auto_now_add=True)),
             ('name', self.gf('django.db.models.fields.CharField')(db_index=True, max_length=255)),
             ('original_name', self.gf('django.db.models.fields.CharField')(db_index=True, max_length=255)),
         ))
