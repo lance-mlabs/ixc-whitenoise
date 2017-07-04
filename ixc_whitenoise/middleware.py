@@ -1,6 +1,7 @@
 from django.core.exceptions import ImproperlyConfigured
 from django.core.files.storage import default_storage
 from django.http import FileResponse
+from django.utils.functional import empty
 from django.utils.six.moves.urllib.parse import urlparse
 from whitenoise.middleware import WhiteNoiseMiddleware
 from whitenoise.utils import ensure_leading_trailing_slash
@@ -50,7 +51,11 @@ class WhiteNoiseMiddleware(WhiteNoiseMiddleware):
     def is_immutable_file(self, path, url):
         if super(WhiteNoiseMiddleware, self).is_immutable_file(path, url):
             return True
-        if isinstance(default_storage, UniqueStorage) and \
+        # Ensure the lazy default storage object has been evaluated, so we can
+        # test the wrapped storage class.
+        if default_storage._wrapped is empty:
+            default_storage._setup()
+        if isinstance(default_storage._wrapped, UniqueStorage) and \
                 url.startswith(self.media_prefix):
             return True
         return False
