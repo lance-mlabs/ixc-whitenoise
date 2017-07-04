@@ -1,12 +1,17 @@
-import sys
+import logging
 
+from django.utils.functional import empty, LazyObject
 from django.core.management.base import BaseCommand
 from django.db import models
 from django.db.models.fields.files import FileField
 
+from ixc_whitenoise.storage import UniqueStorage
+
+logger = logging.getLogger(__name__)
+
 
 class Command(BaseCommand):
-    help = 'Re-save all file fields using `UniqueStorage` to deduplicate.'
+    help = 'Deduplicate all file fields using `UniqueStorage`.'
 
     def handle(self, *args, **options):
         updated_count = 0
@@ -19,9 +24,16 @@ class Command(BaseCommand):
             # Get all file fields that use `UniqueStorage`.
             file_fields = []
             for field in model._meta.fields:
-                if isinstance(field, FileField) and \
-                        isinstance(field.storage, UniqueStorage):
-                    file_fields.append(field.name)
+                if isinstance(field, FileField):
+                    storage = field.storage
+                    # If storage is a ``LazyObject``, e.g. ``DefaultStorage``,
+                    # test wrapped storage class.
+                    if isinstance(storage, LazyObject):
+                        if storage._wrapped is empty:
+                            storage._setup()
+                        storage = storage._wrapped
+                    if isinstance(storage, UniqueStorage):
+                        file_fields.append(field.name)
 
             # Skip models with no file fields.
             if not file_fields:
@@ -34,34 +46,51 @@ class Command(BaseCommand):
                 # Loop through file fields.
                 for field_name in file_fields:
 
-                    # Re-save field to deduplicate.
+                    # Deduplicate.
                     field = getattr(instance, field_name)
-                    name = field.name
-                    field.save(field.name, field.file)
+                    if not field:
+                        continue  # Skip empty fields
+                    original_name = field.name
+                    try:
+                        unique_name = field.storage.save(
+                            original_name, field.file)
+                    except:
+                        logger.exception('Unable to save: %s.%s (pk: %s) %s' % (
+                            model._meta.model_name,
+                            field_name,
+                            instance.pk,
+                            original_name,
+                        ))
+                        continue
+
+                    # Avoid keeping too many files open.
+                    field.close()
 
                     # Something was updated.
-                    if name != field.name:
-                        updated = True
-                        sys.stderr.write(
-                            '%s: %s: %s (pk: %s) %s: %s -> %s\n' % (
+                    if unique_name != original_name:
+                        setattr(instance, field_name, unique_name)
+                        logger.debug(
+                            '%s, %s: %s.%s (pk: %s): %s -> %s' % (
                                 updated_count + 1,
-                                model._meta.model_name,
                                 model_count + 1,
-                                instance.pk,
+                                model._meta.model_name,
                                 field_name,
-                                name,
-                                field.name,
+                                instance.pk,
+                                original_name,
+                                unique_name,
                             ))
+                        updated = True
 
-                # Increment counters.
+                # Save and increment counters.
                 if updated:
+                    instance.save()
                     updated_count += 1
                     model_count += 1
                 else:
                     skipped_count += 1
 
         # Done.
-        sys.stderr.write('updated: %s, skipped: %s' % (
+        logger.info('Updated: %s, Skipped: %s' % (
             updated_count,
             skipped_count,
         ))
