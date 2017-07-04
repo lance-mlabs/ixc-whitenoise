@@ -102,12 +102,12 @@ class UniqueMixin(object):
 
     def original_name(self, name):
         """
-        Return the original name for a file.
+        Return the latest original name for a file.
         """
         try:
             return UniqueFile.objects \
-                .filter(name=name).order_by('-pk')[0].original_name
-        except IndexError:
+                .filter(name=name).latest('-pk').original_name
+        except UniqueFile.DoesNotExist:
             return name
 
 
