@@ -8,4 +8,3 @@ class UniqueFile(models.Model):
 
     class Meta:
         ordering = ('-pk', )
-        unique_together = ('name', 'original_name', )
