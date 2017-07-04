@@ -70,7 +70,7 @@ class UniqueMixin(object):
         md5 = hashlib.md5()
         for chunk in content.chunks():
             md5.update(chunk)
-        file_hash = md5.hexdigest()
+        content_hash = md5.hexdigest()
 
         # Strip dedupe path prefix from supplied name to avoid accidentally
         # prepending it multiple times.
@@ -80,7 +80,7 @@ class UniqueMixin(object):
         path, _ = posixpath.split(base_name)
         _, ext = posixpath.splitext(base_name)
         ext = DEDUPE_EXTENTIONS.get(ext.lower(), ext.lower())
-        unique_name = posixpath.join(DEDUPE_PATH_PREFIX, path, file_hash + ext)
+        unique_name = posixpath.join(DEDUPE_PATH_PREFIX, path, content_hash + ext)
 
         # Abort without saving because existing files with the same name must
         # also have the same content.
