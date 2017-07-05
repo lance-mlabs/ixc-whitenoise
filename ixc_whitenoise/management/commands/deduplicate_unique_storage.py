@@ -1,6 +1,5 @@
 import logging
 
-from django.utils.functional import empty, LazyObject
 from django.core.management.base import BaseCommand
 from django.db import models
 from django.db.models.fields.files import FileField
@@ -25,13 +24,7 @@ class Command(BaseCommand):
             file_fields = []
             for field in model._meta.fields:
                 if isinstance(field, FileField):
-                    storage = field.storage
-                    # If storage is a ``LazyObject``, e.g. ``DefaultStorage``,
-                    # test wrapped storage class.
-                    if isinstance(storage, LazyObject):
-                        if storage._wrapped is empty:
-                            storage._setup()
-                        storage = storage._wrapped
+                    storage = unlazy_storage(field.storage)
                     if isinstance(storage, UniqueStorage):
                         file_fields.append(field.name)
 

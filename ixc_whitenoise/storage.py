@@ -5,6 +5,7 @@ import re
 
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
+from django.utils.functional import empty, LazyObject
 from whitenoise.storage import \
     CompressedManifestStaticFilesStorage, HelpfulExceptionMixin, \
     MissingFileError
@@ -121,3 +122,14 @@ class CompressedManifestStaticFilesStorage(
 
 class UniqueStorage(UniqueMixin, FileSystemStorage):
     pass
+
+
+def unlazy_storage(storage):
+    """
+    If `storage` is lazy, return the wrapped storage object.
+    """
+    if isinstance(storage, LazyObject):
+        if storage._wrapped is empty:
+            storage._setup()
+        storage = storage._wrapped
+    return storage
