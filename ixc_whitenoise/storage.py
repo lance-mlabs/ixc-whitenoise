@@ -23,6 +23,7 @@ DEDUPE_EXTENTIONS.update(
 DEDUPE_PATH_PREFIX = getattr(
     settings, 'IXC_WHITENOISE_DEDUPE_PATH_PREFIX', 'dd')
 
+
 # Log a warning instead of raising an exception when a referenced file is
 # not found. These are often in 3rd party packages and outside our control.
 class HelpfulWarningMixin(HelpfulExceptionMixin):
