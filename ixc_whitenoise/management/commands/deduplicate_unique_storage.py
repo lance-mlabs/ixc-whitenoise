@@ -4,7 +4,7 @@ from django.core.management.base import BaseCommand
 from django.db import models
 from django.db.models.fields.files import FileField
 
-from ixc_whitenoise.storage import UniqueStorage
+from ixc_whitenoise.storage import UniqueStorage, unlazy_storage
 
 logger = logging.getLogger(__name__)
 
