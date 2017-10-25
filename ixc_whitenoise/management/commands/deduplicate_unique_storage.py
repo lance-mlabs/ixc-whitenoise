@@ -47,16 +47,15 @@ class Command(BaseCommand):
                         continue
 
                     # Skip fields that have already been deduplicated. First
-                    # check that the filename looks like a valid hash, to save
-                    # time when it is definitely not going to match.
-                    filename = posixpath.split(
-                        posixpath.splitext('foo/bar/baz.gif')[0])[1]
-                    if re.match(r'^[0-f]{32}$', filename):
-                        # Generate content hash from local storage or get it
-                        # from remote storage metadata.
+                    # check that the filename looks like a valid hash (to save
+                    # time when it is definitely not going to match), then check
+                    # that the actual content hash matches the filename hash.
+                    filename_hash = posixpath.split(
+                        posixpath.splitext(original_name)[0])[1]
+                    if re.match(r'^[0-f]{32}$', filename_hash):
                         content_hash = field.storage.get_content_hash(
                             original_name)
-                        if filename == content_hash:
+                        if content_hash == filename_hash:
                             logger.debug(
                                 'Already deduplicated: %s.%s (pk: %s) %s' % (
                                     model._meta.model_name,
