@@ -4,6 +4,7 @@ from django.core.management.base import BaseCommand
 from django.db import models
 from django.db.models.fields.files import FileField
 
+from ixc_whitenoise.models import UniqueFile
 from ixc_whitenoise.storage import UniqueStorage, unlazy_storage
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,11 @@ class Command(BaseCommand):
 
                     # Skip empty fields.
                     if not field:
+                        continue
+
+                    # Assume that files with a matching `UniqueFile` object have
+                    # already been deduplicated.
+                    if UniqueFile.objects.filter(name=original_name).exists():
                         continue
 
                     # Skip fields that have already been deduplicated. First
