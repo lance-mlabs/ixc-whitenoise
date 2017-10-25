@@ -6,7 +6,7 @@ from django.utils.six.moves.urllib.parse import urlparse
 from whitenoise.middleware import WhiteNoiseMiddleware
 from whitenoise.utils import ensure_leading_trailing_slash
 
-from ixc_whitenoise.storage import UniqueStorage
+from ixc_whitenoise.storage import UniqueStorage, unlazy_storage
 
 
 class StripVaryHeaderMiddleware(object):
@@ -51,11 +51,11 @@ class WhiteNoiseMiddleware(WhiteNoiseMiddleware):
     def is_immutable_file(self, path, url):
         if super(WhiteNoiseMiddleware, self).is_immutable_file(path, url):
             return True
-        # Ensure the lazy default storage object has been evaluated, so we can
-        # test the wrapped storage class.
-        if default_storage._wrapped is empty:
-            default_storage._setup()
-        if isinstance(default_storage._wrapped, UniqueStorage) and \
+        # `MEDIA_ROOT` and `MEDIA_URL` are used with the default storage class.
+        # Only assume media is immutable if `UniqueStorage` is the default
+        # storage class.
+        storage = unlazy_storage(default_storage)
+        if isinstance(storage, UniqueStorage) and \
                 url.startswith(self.media_prefix):
             return True
         return False
