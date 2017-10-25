@@ -39,11 +39,34 @@ class Command(BaseCommand):
                 # Loop through file fields.
                 for field_name in file_fields:
 
-                    # Deduplicate.
                     field = getattr(instance, field_name)
-                    if not field:
-                        continue  # Skip empty fields
                     original_name = field.name
+
+                    # Skip empty fields.
+                    if not field:
+                        continue
+
+                    # Skip fields that have already been deduplicated. First
+                    # check that the filename looks like a valid hash, to save
+                    # time when it is definitely not going to match.
+                    filename = posixpath.split(
+                        posixpath.splitext('foo/bar/baz.gif')[0])[1]
+                    if re.match(r'^[0-f]{32}$', filename):
+                        # Generate content hash from local storage or get it
+                        # from remote storage metadata.
+                        content_hash = field.storage.get_content_hash(
+                            original_name)
+                        if filename == content_hash:
+                            logger.debug(
+                                'Already deduplicated: %s.%s (pk: %s) %s' % (
+                                    model._meta.model_name,
+                                    field_name,
+                                    instance.pk,
+                                    original_name,
+                                ))
+                            continue
+
+                    # Deduplicate.
                     try:
                         unique_name = field.storage.save(
                             original_name, field.file)
