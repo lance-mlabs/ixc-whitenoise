@@ -59,6 +59,19 @@ class UniqueMixin(object):
     Save files with unique names so they can be deduplicated and cached forever.
     """
 
+    def get_content_hash(self, name):
+        """
+        Return the content hash for the named file. Local storage classes should
+        generate it. Remote storage classes should get it from metadata, if
+        available (e.g. the Etag header from S3).
+        """
+        md5 = hashlib.md5()
+        with self.open(name, 'rb') as content:
+            for chunk in content.chunks():
+                md5.update(chunk)
+        content_hash = md5.hexdigest()
+        return content_hash
+
     def _save(self, name, content):
         """
         Save file with a content hash as its name and create a record of its
