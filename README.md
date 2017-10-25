@@ -28,7 +28,7 @@ Management commands:
 
   * `deduplicate_unique_storage` - Finds all file fields in all models that use
     `UniqueStorage` and re-saves them to deduplicate. The original files are not
-    removed.
+    removed. Files that have already been deduplicated will be skipped.
 
 [0]: https://github.com/evansd/whitenoise/
 [1]: https://github.com/jazzband/django-pipeline/
