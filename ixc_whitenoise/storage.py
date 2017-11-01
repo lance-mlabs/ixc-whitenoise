@@ -95,17 +95,17 @@ class UniqueMixin(object):
         path, _ = posixpath.split(base_name)
         _, ext = posixpath.splitext(base_name)
         ext = DEDUPE_EXTENTIONS.get(ext.lower(), ext.lower())
-        unique_name = posixpath.join(DEDUPE_PATH_PREFIX, path, content_hash + ext)
+        unique_name = posixpath.join(
+            DEDUPE_PATH_PREFIX, path, content_hash + ext)
 
-        # Abort without saving because existing files with the same name must
-        # also have the same content.
-        if self.exists(unique_name):
-            return unique_name
-
-        # Save and create a record of the original name.
-        unique_name = super(UniqueMixin, self)._save(unique_name, content)
+        # Create a record of the original name.
         if unique_name != name:
             UniqueFile.objects.create(name=unique_name, original_name=name)
+
+        # Only save if file does not already exist, because existing files with
+        # the same name must also have the same content.
+        if not self.exists(unique_name):
+            super(UniqueMixin, self)._save(unique_name, content)
 
         return unique_name
 
