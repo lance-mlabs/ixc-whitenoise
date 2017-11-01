@@ -1,4 +1,7 @@
 import logging
+import os
+import posixpath
+import signal
 
 from django.core.management.base import BaseCommand
 from django.db import models
@@ -9,16 +12,24 @@ from ixc_whitenoise.storage import UniqueStorage, unlazy_storage
 
 logger = logging.getLogger(__name__)
 
+TERMINATE = False
+
 
 class Command(BaseCommand):
     help = 'Deduplicate all file fields using `UniqueStorage`.'
 
     def handle(self, *args, **options):
+        error_count = 0
         updated_count = 0
         skipped_count = 0
 
         # Loop through ALL models.
         for model in models.get_models():
+
+            if TERMINATE:
+                logger.error('Breaking out of outer loop.')
+                break
+
             model_count = 0
 
             # Get all file fields that use `UniqueStorage`.
@@ -33,8 +44,14 @@ class Command(BaseCommand):
             if not file_fields:
                 continue
 
-            # Loop through ALL instances.
-            for instance in model.objects.all():
+            # Loop through ALL instances. Sort by primary key so we have some
+            # kind of progress indicator as it counts down.
+            for instance in model.objects.order_by('-pk'):
+
+                if TERMINATE:
+                    logger.error('Breaking out of inner loop.')
+                    break
+
                 updated = False
 
                 # Loop through file fields.
@@ -42,77 +59,150 @@ class Command(BaseCommand):
 
                     field = getattr(instance, field_name)
                     original_name = field.name
+                    unique_name = None
 
                     # Skip empty fields.
                     if not field:
                         continue
 
-                    # Assume that files with a matching `UniqueFile` object have
-                    # already been deduplicated.
-                    if UniqueFile.objects.filter(name=original_name).exists():
+                    # Assume that files with a matching `UniqueFile` object (by
+                    # unique name) have already been deduplicated, with nothing
+                    # left to do.
+                    unique_file = UniqueFile.objects \
+                            .filter(name=original_name).last()
+                    if unique_file:
+                        skipped_count += 1
+                        logger.debug(
+                            '%s (%s), %s, %s: '
+                            'Already deduplicated: '
+                            '%s.%s (pk: %s) %s -> %s' % (
+                                updated_count,
+                                model_count,
+                                skipped_count,
+                                error_count,
+                                model._meta.model_name,
+                                field_name,
+                                instance.pk,
+                                unique_file.original_name,
+                                unique_file.name,
+                            ))
                         continue
 
-                    # Skip fields that have already been deduplicated. First
-                    # check that the filename looks like a valid hash (to save
-                    # time when it is definitely not going to match), then check
-                    # that the actual content hash matches the filename hash.
-                    filename_hash = posixpath.split(
-                        posixpath.splitext(original_name)[0])[1]
-                    if re.match(r'^[0-f]{32}$', filename_hash):
-                        content_hash = field.storage.get_content_hash(
-                            original_name)
-                        if content_hash == filename_hash:
-                            logger.debug(
-                                'Already deduplicated: %s.%s (pk: %s) %s' % (
+                    # Assume that files with a matching `UniqueFile` object (by
+                    # original name) have already been deduplicated, but we
+                    # still need to update the field which is now pointing to a
+                    # file that no longer exists.
+                    unique_file = UniqueFile.objects \
+                            .filter(original_name=original_name).last()
+                    if unique_file:
+                        unique_name = unique_file.name
+
+                    # Skip fields with files that do not exist.
+                    elif not field.storage.exists(field.name):
+                        error_count += 1
+                        logger.warning(
+                            '%s (%s), %s, %s: '
+                            'File does not exist: %s.%s (pk: %s) %s' % (
+                                updated_count,
+                                model_count,
+                                skipped_count,
+                                error_count,
+                                model._meta.model_name,
+                                field_name,
+                                instance.pk,
+                                original_name,
+                            ))
+                        continue
+
+                    # Deduplicate.
+                    else:
+                        try:
+                            unique_name = field.storage.save(
+                                original_name, field.file)
+                        except:
+                            # Otherwise, log the exception and continue.
+                            error_count += 1
+                            logger.exception(
+                                '%s (%s), %s, %s: '
+                                'Unable to save: %s.%s (pk: %s) %s' % (
+                                    updated_count,
+                                    model_count,
+                                    skipped_count,
+                                    error_count,
                                     model._meta.model_name,
                                     field_name,
                                     instance.pk,
                                     original_name,
                                 ))
                             continue
-
-                    # Deduplicate.
-                    try:
-                        unique_name = field.storage.save(
-                            original_name, field.file)
-                    except:
-                        logger.exception('Unable to save: %s.%s (pk: %s) %s' % (
-                            model._meta.model_name,
-                            field_name,
-                            instance.pk,
-                            original_name,
-                        ))
-                        continue
-
-                    # Avoid keeping too many files open.
-                    field.close()
+                        finally:
+                            # Avoid keeping too many files open.
+                            field.close()
 
                     # Something was updated.
                     if unique_name != original_name:
                         setattr(instance, field_name, unique_name)
-                        logger.debug(
-                            '%s, %s: %s.%s (pk: %s): %s -> %s' % (
-                                updated_count + 1,
-                                model_count + 1,
+                        updated = True
+                        updated_count += 1
+                        model_count += 1
+                        logger.info(
+                            '%s (%s), %s, %s: '
+                            'Deduplicated: %s.%s (pk: %s) %s -> %s' % (
+                                updated_count,
+                                model_count,
+                                skipped_count,
+                                error_count,
                                 model._meta.model_name,
                                 field_name,
                                 instance.pk,
                                 original_name,
                                 unique_name,
                             ))
-                        updated = True
 
-                # Save and increment counters.
+                        # Cleanup original file and source directory.
+                        field.storage.delete(original_name)
+                        try:
+                            os.removedirs(field.storage.path(
+                                posixpath.dirname(original_name)))
+                        except (NotImplementedError, OSError):
+                            pass
+
+                    # Nothing updated. This can happen when no matching
+                    # `UniqueFile` exists for an already uniquely named file.
+                    else:
+                        skipped_count += 1
+                        logger.debug(
+                            '%s (%s), %s, %s: '
+                            'Already uniquely named: %s.%s (pk: %s) %s' % (
+                                updated_count,
+                                model_count,
+                                skipped_count,
+                                error_count,
+                                model._meta.model_name,
+                                field_name,
+                                instance.pk,
+                                original_name,
+                            ))
+
+                # Save instance after all fields have been deduplicated.
                 if updated:
                     instance.save()
-                    updated_count += 1
-                    model_count += 1
-                else:
-                    skipped_count += 1
 
         # Done.
-        logger.info('Updated: %s, Skipped: %s' % (
+        logger.info('Updated: %s, Skipped: %s, Errors: %s' % (
             updated_count,
             skipped_count,
+            error_count,
         ))
 
+
+# Allow graceful termination of current loop iteration.
+# See: https://stackoverflow.com/questions/24426451/how-to-terminate-loop-gracefully-when-ctrlc-was-pressed-in-python
+def signal_handler(signum, frame):
+    global TERMINATE
+    TERMINATE = True
+    logger.error(
+        'Keyboard Interrupt: Terminating after current loop iteration.')
+
+
+signal.signal(signal.SIGINT, signal_handler)
