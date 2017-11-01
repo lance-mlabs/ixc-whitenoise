@@ -1,10 +1,14 @@
+import posixpath
+
 from django.core.exceptions import ImproperlyConfigured
 from django.core.files.storage import default_storage
+from django.http import HttpResponseRedirect
 from django.utils.functional import empty
 from django.utils.six.moves.urllib.parse import urlparse
 from whitenoise.middleware import WhiteNoiseMiddleware
 from whitenoise.utils import ensure_leading_trailing_slash
 
+from ixc_whitenoise.models import UniqueFile
 from ixc_whitenoise.storage import UniqueStorage, unlazy_storage
 
 
@@ -27,6 +31,7 @@ class StripVaryHeaderMiddleware(object):
 
 
 # Serve media as well as static files.
+# Redirect requests for deduplicated unique storage.
 class WhiteNoiseMiddleware(WhiteNoiseMiddleware):
 
     config_attrs = WhiteNoiseMiddleware.config_attrs + ('media_prefix', )
@@ -64,3 +69,24 @@ class WhiteNoiseMiddleware(WhiteNoiseMiddleware):
                 url.startswith(self.media_prefix):
             return True
         return False
+
+    def process_response(self, request, response, *args, **kwargs):
+        """
+        Redirect requests for deduplicated unique storage.
+        """
+        if response.status_code == 404 and \
+                request.path_info.startswith(self.media_prefix):
+            original_name = request.path_info[len(self.media_prefix):]
+            try:
+                # There could be more than one `UniqueFile` object for a given
+                # name. Redirect to the most recently deduplicated one.
+                unique_file = UniqueFile.objects \
+                    .filter(original_name=original_name).last()
+            except AttributeError:
+                pass
+            else:
+                response = HttpResponseRedirect(posixpath.join(
+                    self.media_prefix,
+                    unique_file.name,
+                ))
+        return response
