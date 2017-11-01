@@ -1,6 +1,5 @@
 from django.core.exceptions import ImproperlyConfigured
 from django.core.files.storage import default_storage
-from django.http import FileResponse
 from django.utils.functional import empty
 from django.utils.six.moves.urllib.parse import urlparse
 from whitenoise.middleware import WhiteNoiseMiddleware
@@ -16,6 +15,12 @@ class StripVaryHeaderMiddleware(object):
         Remove `Vary` header to work around an IE bug. See:
         http://stackoverflow.com/a/23410136
         """
+        # FileResponse was added in Django 1.7.4. Do nothing when it is not
+        # available.
+        try:
+            from django.http import FileResponse
+        except ImportError:
+            return response
         if isinstance(response, FileResponse):
             del response['vary']
         return response
