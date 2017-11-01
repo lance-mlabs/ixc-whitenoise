@@ -8,3 +8,6 @@ class UniqueFile(models.Model):
 
     class Meta:
         ordering = ('-pk', )
+
+    def __unicode__(self):
+        return '%s -> %s' % (self.original_name, self.name)
