@@ -77,14 +77,11 @@ class WhiteNoiseMiddleware(WhiteNoiseMiddleware):
         if response.status_code == 404 and \
                 request.path_info.startswith(self.media_prefix):
             original_name = request.path_info[len(self.media_prefix):]
-            try:
-                # There could be more than one `UniqueFile` object for a given
-                # name. Redirect to the most recently deduplicated one.
-                unique_file = UniqueFile.objects \
-                    .filter(original_name=original_name).last()
-            except AttributeError:
-                pass
-            else:
+            # There could be more than one `UniqueFile` object for a given
+            # name. Redirect to the most recently deduplicated one.
+            unique_file = UniqueFile.objects \
+                .filter(original_name=original_name).last()
+            if unique_file:
                 response = HttpResponseRedirect(posixpath.join(
                     self.media_prefix,
                     unique_file.name,
