@@ -9,7 +9,7 @@ from whitenoise.middleware import WhiteNoiseMiddleware
 from whitenoise.utils import ensure_leading_trailing_slash
 
 from ixc_whitenoise.models import UniqueFile
-from ixc_whitenoise.storage import UniqueStorage, unlazy_storage
+from ixc_whitenoise.storage import UniqueMixin, unlazy_storage
 
 
 class StripVaryHeaderMiddleware(object):
@@ -62,10 +62,10 @@ class WhiteNoiseMiddleware(WhiteNoiseMiddleware):
         if super(WhiteNoiseMiddleware, self).is_immutable_file(path, url):
             return True
         # `MEDIA_ROOT` and `MEDIA_URL` are used with the default storage class.
-        # Only assume media is immutable if `UniqueStorage` is the default
+        # Only assume media is immutable if `UniqueMixin` is the default
         # storage class.
         storage = unlazy_storage(default_storage)
-        if isinstance(storage, UniqueStorage) and \
+        if isinstance(storage, UniqueMixin) and \
                 url.startswith(self.media_prefix):
             return True
         return False
