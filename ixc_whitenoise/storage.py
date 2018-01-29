@@ -41,7 +41,7 @@ class HelpfulWarningMixin(HelpfulExceptionMixin):
 # Don't try to rewrite URLs with unknown schemes.
 class RegexURLConverterMixin(object):
 
-    def url_converter(self, name, hashed_files=None, template=None):
+    def url_converter(self, name, template=None):
         converter = super(RegexURLConverterMixin, self) \
             .url_converter(name, template)
 
