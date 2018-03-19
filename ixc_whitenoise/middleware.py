@@ -5,10 +5,17 @@ from django.core.files.storage import default_storage
 from django.http import HttpResponseRedirect
 from django.utils.functional import empty
 from django.utils.six.moves.urllib.parse import urlparse
+
+try:
+    from django.apps import apps
+    get_model = apps.get_model
+except ImportError:
+    # for django prior to 1.7
+    from django.db.models import get_model
+
 from whitenoise.middleware import WhiteNoiseMiddleware
 from whitenoise.utils import ensure_leading_trailing_slash
 
-from ixc_whitenoise.models import UniqueFile
 from ixc_whitenoise.storage import UniqueMixin, unlazy_storage
 
 
@@ -77,6 +84,8 @@ class WhiteNoiseMiddleware(WhiteNoiseMiddleware):
         if response.status_code == 404 and \
                 request.path_info.startswith(self.media_prefix):
             original_name = request.path_info[len(self.media_prefix):]
+
+            UniqueFile = get_model('ixc_whitenoise.UniqueFile')
             # There could be more than one `UniqueFile` object for a given
             # name. Redirect to the most recently deduplicated one.
             unique_file = UniqueFile.objects \
