@@ -109,7 +109,7 @@ class UniqueMixin(object):
 
         return unique_name
 
-    def get_available_name(self, name):
+    def get_available_name(self, name, max_length=None):
         """
         Disable name conflict resolution.
         """
