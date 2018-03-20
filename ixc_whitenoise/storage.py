@@ -5,11 +5,31 @@ import re
 
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
+from django.utils.functional import empty, LazyObject
+
+try:
+    from django.apps import apps
+    get_model = apps.get_model
+except ImportError:
+    # for django prior to 1.7
+    from django.db.models import get_model
+
 from whitenoise.storage import \
     CompressedManifestStaticFilesStorage, HelpfulExceptionMixin, \
     MissingFileError
 
+
 logger = logging.getLogger(__name__)
+
+DEDUPE_EXTENTIONS = {
+    '.jpeg': '.jpg',
+    '.yaml': '.yml',
+}
+DEDUPE_EXTENTIONS.update(
+    getattr(settings, 'IXC_WHITENOISE_DEDUPE_EXTENTIONS', {}))
+
+DEDUPE_PATH_PREFIX = getattr(
+    settings, 'IXC_WHITENOISE_DEDUPE_PATH_PREFIX', 'dd')
 
 
 # Log a warning instead of raising an exception when a referenced file is
@@ -41,6 +61,81 @@ class RegexURLConverterMixin(object):
         return custom_converter
 
 
+class UniqueMixin(object):
+    """
+    Save files with unique names so they can be deduplicated and cached forever.
+    """
+
+    def get_content_hash(self, name):
+        """
+        Return the content hash for the named file. Local storage classes should
+        generate it. Remote storage classes should get it from metadata, if
+        available (e.g. the Etag header from S3).
+        """
+        md5 = hashlib.md5()
+        with self.open(name, 'rb') as content:
+            for chunk in content.chunks():
+                md5.update(chunk)
+        content_hash = md5.hexdigest()
+        return content_hash
+
+    def _save(self, name, content):
+        """
+        Save file with a content hash as its name and create a record of its
+        original name.
+        """
+
+        # Rewind content to ensure we generate a complete hash.
+        content.seek(0)
+
+        # Generate content hash.
+        md5 = hashlib.md5()
+        for chunk in content.chunks():
+            md5.update(chunk)
+        content_hash = md5.hexdigest()
+
+        # Strip dedupe path prefix from supplied name to avoid accidentally
+        # prepending it multiple times.
+        base_name = re.sub(r'^%s/' % re.escape(DEDUPE_PATH_PREFIX), '', name)
+
+        # Determine unique name.
+        path, _ = posixpath.split(base_name)
+        _, ext = posixpath.splitext(base_name)
+        ext = DEDUPE_EXTENTIONS.get(ext.lower(), ext.lower())
+        unique_name = posixpath.join(
+            DEDUPE_PATH_PREFIX, path, content_hash + ext)
+
+        # Create a record of the original name.
+        if unique_name != name:
+            UniqueFile = get_model('ixc_whitenoise.UniqueFile')
+            UniqueFile.objects.create(name=unique_name, original_name=name)
+
+        # Only save if file does not already exist, because existing files with
+        # the same name must also have the same content.
+        if not self.exists(unique_name):
+            super(UniqueMixin, self)._save(unique_name, content)
+
+        return unique_name
+
+    def get_available_name(self, name, max_length=None):
+        """
+        Disable name conflict resolution.
+        """
+        return name
+
+    def original_name(self, name):
+        """
+        Return the latest original name for a file.
+        """
+        try:
+            UniqueFile = get_model('ixc_whitenoise.UniqueFile')
+
+            return UniqueFile.objects \
+                .filter(name=name).latest('-pk').original_name
+        except UniqueFile.DoesNotExist:
+            return name
+
+
 class CompressedManifestStaticFilesStorage(
         HelpfulWarningMixin,
         RegexURLConverterMixin,
@@ -48,33 +143,16 @@ class CompressedManifestStaticFilesStorage(
     pass
 
 
-# Save media with hashed filenames, so they can be cached forever by a CDN.
-class HashedMediaStorage(FileSystemStorage):
+class UniqueStorage(UniqueMixin, FileSystemStorage):
+    pass
 
-    # Disable Django's name conflict resolution.
-    def get_available_name(self, name):
-        return name
 
-    def _save(self, name, content):
-        # Get hash from content.
-        md5 = hashlib.md5()
-        for chunk in content.chunks():
-            md5.update(chunk)
-        file_hash = md5.hexdigest()
-
-        # Add hash to name.
-        name, ext = posixpath.splitext(name)
-        if getattr(
-                settings, 'IXC_WHITENOISE_HASHED_MEDIA_ORIGINAL_PREFIX', True):
-            # Prefix with original filename.
-            name = '%s.%s%s' % (name, file_hash, ext)
-        else:
-            # Use only the hash as filename, to avoid saving duplicate copies.
-            name = '%s%s' % (file_hash, ext)
-
-        # Return early without saving, because existing files must have the
-        # same content.
-        if self.exists(name):
-            return name
-
-        return super(HashedMediaStorage, self)._save(name, content)
+def unlazy_storage(storage):
+    """
+    If `storage` is lazy, return the wrapped storage object.
+    """
+    while isinstance(storage, LazyObject):
+        if storage._wrapped is empty:
+            storage._setup()
+        storage = storage._wrapped
+    return storage

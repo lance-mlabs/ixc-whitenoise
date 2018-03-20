@@ -1,11 +1,22 @@
+import posixpath
+
 from django.core.exceptions import ImproperlyConfigured
 from django.core.files.storage import default_storage
-from django.http import FileResponse
+from django.http import HttpResponseRedirect
+from django.utils.functional import empty
 from django.utils.six.moves.urllib.parse import urlparse
+
+try:
+    from django.apps import apps
+    get_model = apps.get_model
+except ImportError:
+    # for django prior to 1.7
+    from django.db.models import get_model
+
 from whitenoise.middleware import WhiteNoiseMiddleware
 from whitenoise.utils import ensure_leading_trailing_slash
 
-from ixc_whitenoise.storage import HashedMediaStorage
+from ixc_whitenoise.storage import UniqueMixin, unlazy_storage
 
 
 class StripVaryHeaderMiddleware(object):
@@ -15,12 +26,19 @@ class StripVaryHeaderMiddleware(object):
         Remove `Vary` header to work around an IE bug. See:
         http://stackoverflow.com/a/23410136
         """
+        # FileResponse was added in Django 1.7.4. Do nothing when it is not
+        # available.
+        try:
+            from django.http import FileResponse
+        except ImportError:
+            return response
         if isinstance(response, FileResponse):
             del response['vary']
         return response
 
 
 # Serve media as well as static files.
+# Redirect requests for deduplicated unique storage.
 class WhiteNoiseMiddleware(WhiteNoiseMiddleware):
 
     config_attrs = WhiteNoiseMiddleware.config_attrs + ('media_prefix', )
@@ -46,11 +64,35 @@ class WhiteNoiseMiddleware(WhiteNoiseMiddleware):
         self.media_prefix = ensure_leading_trailing_slash(self.media_prefix)
         self.media_root = settings.MEDIA_ROOT
 
-    # Media with hashed filenames are always immutable.
+    # Files with unique names are always immutable.
     def is_immutable_file(self, path, url):
         if super(WhiteNoiseMiddleware, self).is_immutable_file(path, url):
             return True
-        if isinstance(default_storage, HashedMediaStorage) and \
+        # `MEDIA_ROOT` and `MEDIA_URL` are used with the default storage class.
+        # Only assume media is immutable if `UniqueMixin` is the default
+        # storage class.
+        storage = unlazy_storage(default_storage)
+        if isinstance(storage, UniqueMixin) and \
                 url.startswith(self.media_prefix):
             return True
         return False
+
+    def process_response(self, request, response, *args, **kwargs):
+        """
+        Redirect requests for deduplicated unique storage.
+        """
+        if response.status_code == 404 and \
+                request.path_info.startswith(self.media_prefix):
+            original_name = request.path_info[len(self.media_prefix):]
+
+            UniqueFile = get_model('ixc_whitenoise.UniqueFile')
+            # There could be more than one `UniqueFile` object for a given
+            # name. Redirect to the most recently deduplicated one.
+            unique_file = UniqueFile.objects \
+                .filter(original_name=original_name).last()
+            if unique_file:
+                response = HttpResponseRedirect(posixpath.join(
+                    self.media_prefix,
+                    unique_file.name,
+                ))
+        return response
