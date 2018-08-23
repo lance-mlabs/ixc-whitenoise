@@ -6,14 +6,6 @@ import re
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 from django.utils.functional import empty, LazyObject
-
-try:
-    from django.apps import apps
-    get_model = apps.get_model
-except ImportError:
-    # for django prior to 1.7
-    from django.db.models import get_model
-
 from whitenoise.storage import \
     CompressedManifestStaticFilesStorage, HelpfulExceptionMixin, \
     MissingFileError
@@ -86,6 +78,7 @@ class UniqueMixin(object):
         Save file with a content hash as its name and create a record of its
         original name.
         """
+        from ixc_whitenoise.models import UniqueFile  # Avoid circular import
 
         # Rewind content to ensure we generate a complete hash.
         content.seek(0)
@@ -109,7 +102,6 @@ class UniqueMixin(object):
 
         # Create a record of the original name.
         if unique_name != name:
-            UniqueFile = get_model('ixc_whitenoise.UniqueFile')
             UniqueFile.objects.create(name=unique_name, original_name=name)
 
         # Only save if file does not already exist, because existing files with
@@ -129,9 +121,8 @@ class UniqueMixin(object):
         """
         Return the latest original name for a file.
         """
+        from ixc_whitenoise.models import UniqueFile  # Avoid circular import
         try:
-            UniqueFile = get_model('ixc_whitenoise.UniqueFile')
-
             return UniqueFile.objects \
                 .filter(name=name).latest('-pk').original_name
         except UniqueFile.DoesNotExist:
