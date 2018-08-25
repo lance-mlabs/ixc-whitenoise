@@ -16,13 +16,20 @@ Improvements to [WhiteNoise][0]:
 
 Settings:
 
-  * `IXC_WHITENOISE_DEDUPE_EXTENSIONS` - Define short versions of long
-    extensions in a dict, e.g. `{'.jpeg': '.jpg', '.yaml': '.yml'}`.
-    Deduplicated files will use the short version.
+  * `IXC_WHITENOISE_DEDUPE_EXTENSIONS` - A dictionary mapping extension
+    variations to canonical versions. Unique files will use the canonical
+    version. Default: `{'.jpeg': '.jpg', '.yaml': '.yml'}`.
 
-  * `IXC_WHITENOISE_DEDUPE_PATH_PREFIX` - Deduplicated files will be saved into
-    this directory. Their original path will be retained, but their filename
-    will be replaced with a unique content hash.
+  * `IXC_WHITENOISE_DEDUPE_PATH_PREFIX` - Unique files will be saved into this
+    directory. Their original path will be retained, but their filename will be
+    replaced with a unique content hash. Default: `dd`.
+
+  * `IXC_WHITENOISE_ORIGINAL_BASENAME` - Append an abbreviated content hash to
+    the original basename instead of replacing it with a full content hash.
+    This reduces deduplicate, but may be better for SEO. Default: `False`.
+
+  * `IXC_WHITENOISE_ORIGINAL_BASENAME_HASH_LENGTH` - The number of characters
+    from the full content hash to use as an abbreviated hash. Default: `7`.
 
 Management commands:
 

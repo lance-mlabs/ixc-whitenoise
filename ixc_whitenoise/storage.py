@@ -23,6 +23,12 @@ DEDUPE_EXTENTIONS.update(
 DEDUPE_PATH_PREFIX = getattr(
     settings, 'IXC_WHITENOISE_DEDUPE_PATH_PREFIX', 'dd')
 
+HASH_LENGTH = getattr(
+    settings, 'IXC_WHITENOISE_ORIGINAL_BASENAME_HASH_LENGTH', 7)
+
+ORIGINAL_BASENAME = getattr(
+    settings, 'IXC_WHITENOISE_ORIGINAL_BASENAME', False)
+
 
 # Log a warning instead of raising an exception when a referenced file is
 # not found. These are often in 3rd party packages and outside our control.
@@ -60,6 +66,15 @@ class UniqueMixin(object):
     Save files with unique names so they can be deduplicated and cached forever.
     """
 
+    def generate_content_hash(self, content):
+        # Rewind content to ensure we generate a complete hash.
+        content.seek(0)
+        # Generate content hash.
+        md5 = hashlib.md5()
+        for chunk in content.chunks():
+            md5.update(chunk)
+        return md5.hexdigest()
+
     def get_content_hash(self, name):
         """
         Return the content hash for the named file. Local storage classes should
@@ -73,6 +88,30 @@ class UniqueMixin(object):
         content_hash = md5.hexdigest()
         return content_hash
 
+    def get_unique_name(self, name, content_hash):
+        """
+        Determine the unique name for a given original name and content hash.
+        """
+
+        # Get path, name and extension.
+        path, basename = posixpath.split(name)
+        basename, ext = posixpath.splitext(basename)
+        ext = DEDUPE_EXTENTIONS.get(ext.lower(), ext.lower())
+
+        # Strip dedupe path prefix and unique hash suffix.
+        if path.startswith(DEDUPE_PATH_PREFIX):
+            path = re.sub(r'^%s/' % re.escape(DEDUPE_PATH_PREFIX), '', path)
+            basename = re.sub(r'\.[0-9a-z]+$', '', basename)
+
+        # Determine unique name. An abbreviated hash is sufficient when
+        # combined with the original name. Otherwise use the full hash.
+        if ORIGINAL_BASENAME:
+            basename = '%s.%s' % (basename, content_hash[:HASH_LENGTH])
+        else:
+            basename = content_hash
+
+        return posixpath.join(DEDUPE_PATH_PREFIX, path, basename + ext)
+
     def _save(self, name, content):
         """
         Save file with a content hash as its name and create a record of its
@@ -80,25 +119,11 @@ class UniqueMixin(object):
         """
         from ixc_whitenoise.models import UniqueFile  # Avoid circular import
 
-        # Rewind content to ensure we generate a complete hash.
-        content.seek(0)
+        # Get content hash.
+        content_hash = self.generate_content_hash(content)
 
-        # Generate content hash.
-        md5 = hashlib.md5()
-        for chunk in content.chunks():
-            md5.update(chunk)
-        content_hash = md5.hexdigest()
-
-        # Strip dedupe path prefix from supplied name to avoid accidentally
-        # prepending it multiple times.
-        base_name = re.sub(r'^%s/' % re.escape(DEDUPE_PATH_PREFIX), '', name)
-
-        # Determine unique name.
-        path, _ = posixpath.split(base_name)
-        _, ext = posixpath.splitext(base_name)
-        ext = DEDUPE_EXTENTIONS.get(ext.lower(), ext.lower())
-        unique_name = posixpath.join(
-            DEDUPE_PATH_PREFIX, path, content_hash + ext)
+        # Get unique name.
+        unique_name = self.get_unique_name(name, content_hash)
 
         # Create a record of the original name.
         if unique_name != name:
