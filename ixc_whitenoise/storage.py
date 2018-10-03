@@ -99,9 +99,8 @@ class UniqueMixin(object):
         ext = DEDUPE_EXTENTIONS.get(ext.lower(), ext.lower())
 
         # Strip dedupe path prefix and unique hash suffix.
-        if path.startswith(DEDUPE_PATH_PREFIX):
-            path = re.sub(r'^%s/' % re.escape(DEDUPE_PATH_PREFIX), '', path)
-            basename = re.sub(r'\.[0-9a-z]+$', '', basename)
+        path = re.sub(r'^%s/' % re.escape(DEDUPE_PATH_PREFIX), '', path)
+        basename = re.sub(r'\.[0-9a-z]+$', '', basename)
 
         # Determine unique name. An abbreviated hash is sufficient when
         # combined with the original name. Otherwise use the full hash.
