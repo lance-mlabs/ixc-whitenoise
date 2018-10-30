@@ -6,7 +6,11 @@ from django.http import HttpResponseRedirect
 from django.utils.functional import empty
 from django.utils.six.moves.urllib.parse import urlparse
 from whitenoise.middleware import WhiteNoiseMiddleware
-from whitenoise.utils import ensure_leading_trailing_slash
+
+try:
+    from whitenoise.string_utils import ensure_leading_trailing_slash  # >=4.0b1
+except ImportError:
+    from whitenoise.utils import ensure_leading_trailing_slash
 
 from ixc_whitenoise.storage import UniqueMixin, unlazy_storage
 
