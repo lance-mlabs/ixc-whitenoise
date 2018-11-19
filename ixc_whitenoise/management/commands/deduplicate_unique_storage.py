@@ -46,6 +46,17 @@ class Command(BaseCommand):
                     storage = unlazy_storage(field.storage)
                     if isinstance(storage, UniqueMixin):
                         file_fields.append(field.name)
+                        logger.info('Found unique file field: %s.%s (%r)' % (
+                            model._meta.app_label,
+                            model._meta.label,
+                            field.name,
+                        ))
+                    else:
+                        logger.debug('Skipping file field: %s.%s (%r)' % (
+                            model._meta.app_label,
+                            model._meta.label,
+                            field.name,
+                        ))
 
             # Skip models with no file fields.
             if not file_fields:
