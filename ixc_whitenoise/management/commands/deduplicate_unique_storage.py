@@ -10,6 +10,13 @@ from django.db.models.fields.files import FileField
 from ixc_whitenoise.models import UniqueFile
 from ixc_whitenoise.storage import UniqueStorage, unlazy_storage
 
+try:
+    from django.apps import apps
+except ImportError:
+    get_models = models.get_models
+else:
+    get_models = apps.get_models
+
 logger = logging.getLogger(__name__)
 
 TERMINATE = False
@@ -24,7 +31,7 @@ class Command(BaseCommand):
         skipped_count = 0
 
         # Loop through ALL models.
-        for model in models.get_models():
+        for model in get_models():
 
             if TERMINATE:
                 logger.error('Breaking out of outer loop.')
