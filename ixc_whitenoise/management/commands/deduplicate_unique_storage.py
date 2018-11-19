@@ -8,7 +8,7 @@ from django.db import models
 from django.db.models.fields.files import FileField
 
 from ixc_whitenoise.models import UniqueFile
-from ixc_whitenoise.storage import UniqueStorage, unlazy_storage
+from ixc_whitenoise.storage import UniqueMixin, unlazy_storage
 
 try:
     from django.apps import apps
@@ -23,7 +23,7 @@ TERMINATE = False
 
 
 class Command(BaseCommand):
-    help = 'Deduplicate all file fields using `UniqueStorage`.'
+    help = 'Deduplicate all file fields using `UniqueMixin`.'
 
     def handle(self, *args, **options):
         error_count = 0
@@ -39,12 +39,12 @@ class Command(BaseCommand):
 
             model_count = 0
 
-            # Get all file fields that use `UniqueStorage`.
+            # Get all file fields that use `UniqueMixin`.
             file_fields = []
             for field in model._meta.fields:
                 if isinstance(field, FileField):
                     storage = unlazy_storage(field.storage)
-                    if isinstance(storage, UniqueStorage):
+                    if isinstance(storage, UniqueMixin):
                         file_fields.append(field.name)
 
             # Skip models with no file fields.
