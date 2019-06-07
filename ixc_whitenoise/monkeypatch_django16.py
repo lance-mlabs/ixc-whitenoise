@@ -151,7 +151,7 @@ if django.VERSION[:2] < (1, 7):
 
             return unquote(final_url)
 
-        def url_converter(self, name, template=None):
+        def url_converter(self, name, hashed_files=None, template=None):
             """
             Returns the custom URL converter for the given file name.
             """
