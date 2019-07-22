@@ -3,6 +3,7 @@ import logging
 import posixpath
 import re
 
+import django
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 from django.utils.functional import empty, LazyObject
@@ -47,10 +48,16 @@ class HelpfulWarningMixin(HelpfulExceptionMixin):
 class RegexURLConverterMixin(object):
 
     def url_converter(self, name, hashed_files=None, template=None):
-        if hashed_files is None:
-            hashed_files = {}
-        converter = super(RegexURLConverterMixin, self).url_converter(
-            name, hashed_files=hashed_files, template=template)
+        # `hashed_files` parameter is only supported since Django 1.11
+        # https://github.com/django/django/commit/53bffe8d03f01bd3214a5404998cb965fb28cd0b
+        if django.VERSION[:2] >= (1, 11):
+            if hashed_files is None:
+                hashed_files = {}
+            converter = super(RegexURLConverterMixin, self).url_converter(
+                name, hashed_files=hashed_files, template=template)
+        else:
+            converter = super(RegexURLConverterMixin, self).url_converter(
+                name, template=template)
 
         def custom_converter(matchobj):
             matched, url = matchobj.groups()
