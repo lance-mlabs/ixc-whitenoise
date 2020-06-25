@@ -28,8 +28,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     include_package_data=True,
     install_requires=[
-        # 4.1.3 fix avoids exposing server files when whitenoise is misconfigured
-        'whitenoise>=4.1.3',
+        'whitenoise>=4.1.3,<5',  # >=5 requires Python 3
     ],
     extras_require={
         'pipeline': [
