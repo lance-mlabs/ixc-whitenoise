@@ -164,7 +164,11 @@ class CompressedManifestStaticFilesStorage(
         HelpfulWarningMixin,
         RegexURLConverterMixin,
         CompressedManifestStaticFilesStorage):
-    pass
+
+    # Do not raise `ValueError` when other files are directly added to the static root
+    # directory (not via the `collectstatic` management command). For example, compiled
+    # SCSS which is already compressed and given a unique filename.
+    manifest_strict = False
 
 
 class UniqueStorage(UniqueMixin, FileSystemStorage):
