@@ -2,6 +2,7 @@ import hashlib
 import logging
 import posixpath
 import re
+import six
 
 import django
 from django.conf import settings
@@ -79,6 +80,14 @@ class UniqueMixin(object):
         # Generate content hash.
         md5 = hashlib.md5()
         for chunk in content.chunks():
+            # If content is a string, instead of bytes, encode with UTF-8 for
+            # hashing to work. While we're assuming that the file has been
+            # decoded with UTF-8, the only scenario in which we've encountered
+            # this issue is when attachments for outgoing mail are being saved,
+            # in which case Django's EmailMessage.attach() is guaranteed to 
+            # have decoded using UTF-8.
+            if isinstance(chunk, six.text_type):
+                chunk = chunk.encode()
             md5.update(chunk)
         return md5.hexdigest()
 
