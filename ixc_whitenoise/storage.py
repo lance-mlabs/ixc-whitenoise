@@ -174,6 +174,16 @@ class CompressedManifestStaticFilesStorage(
         RegexURLConverterMixin,
         CompressedManifestStaticFilesStorage):
 
+    # When collecting static files during deployment to global storage, there will be a
+    # moment after files have been collected and the manifest written but before the
+    # application has been restarted, where the wrong (new) manifest is used by the
+    # wrong (old) app code. By appending a unique app code version to the manifest name,
+    # both manifests can exist at the same time and be read by their respective app
+    # versions.
+    manifest_name = getattr(
+        settings, 'IXC_WHITENOISE_MANIFEST_NAME', 'staticfiles.json'
+    )
+
     # Do not raise `ValueError` when other files are directly added to the static root
     # directory (not via the `collectstatic` management command). For example, compiled
     # SCSS which is already compressed and given a unique filename.
