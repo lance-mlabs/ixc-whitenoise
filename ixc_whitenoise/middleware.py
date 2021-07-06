@@ -4,7 +4,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django.core.files.storage import default_storage
 from django.http import HttpResponseRedirect
 from django.utils.functional import empty
-from django.utils.six.moves.urllib.parse import urlparse
+from six.moves.urllib.parse import urlparse
 from whitenoise.middleware import WhiteNoiseMiddleware
 
 try:

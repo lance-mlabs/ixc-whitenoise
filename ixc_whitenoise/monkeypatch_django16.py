@@ -34,7 +34,7 @@ if django.VERSION[:2] < (1, 7):
     from django.contrib.staticfiles.utils import matches_patterns
     from django.core.files.base import ContentFile
     from django.utils.encoding import force_bytes, force_text
-    from django.utils.six.moves.urllib.parse import (
+    from six.moves.urllib.parse import (
         unquote, urldefrag, urlsplit, urlunsplit,
     )
 
