@@ -61,6 +61,7 @@ class RegexURLConverterMixin(object):
                 name, template=template)
 
         def custom_converter(matchobj):
+            print(matchobj)
             matched, url = matchobj.groups()
             if re.match(r'(?i)([a-z]+://|//|#|data:)', url):
                 return matched
