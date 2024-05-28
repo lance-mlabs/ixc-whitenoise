@@ -62,6 +62,9 @@ class RegexURLConverterMixin(object):
 
         def custom_converter(matchobj):
             print(matchobj)
+            groups = matchobj.groups()
+            print(groups)
+            print(f"Number of groups:{len(groups)}")
             matched, url = matchobj.groups()
             if re.match(r'(?i)([a-z]+://|//|#|data:)', url):
                 return matched
